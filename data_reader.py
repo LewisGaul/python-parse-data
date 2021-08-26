@@ -108,12 +108,13 @@ class _NamedUserClass(_SchemaType):
         self._defaults = fields
         return self
 
+
 def parse_node(schema, node):
     match schema:
         case None:
             if node is not None:
                 raise ValueError("Expected 'None'")
-            return None
+            return node
         case Bool():
             if type(node) != bool:
                 raise ValueError("Expected bool")
@@ -132,13 +133,13 @@ def parse_node(schema, node):
             if regex is not None and not re.fullmatch(regex, node):
                 raise ValueError(f"String failed to match regex {regex!r}")
             return node
-        case List():
+        case List(inner_type=inner_type):
             if type(node) != list:
                 raise ValueError("Expected list")
             result = []
             for item in node:
                 try:
-                    result.append(parse_node(schema.inner_type, item))
+                    result.append(parse_node(inner_type, item))
                 except ValueError as e:
                     raise ValueError(f"Error in list item {len(result)}") from e
             return result

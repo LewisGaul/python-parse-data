@@ -16,7 +16,7 @@ yaml_data = """
         
         - name: collection/
           description: Collection of scripts
-          link: None
+          link: null
           runs- on: []
           contributors: [SomeDude]
           maintained: true
@@ -68,7 +68,7 @@ pprint(parsed)
 #        obsolete=False),
 #  Entry(name='collection/',
 #        description='Collection of scripts',
-#        link='None',
+#        link=None,
 #        usage=None,
 #        contributors=['SomeDude'],
 #        maintained=True,

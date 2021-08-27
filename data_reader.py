@@ -108,13 +108,22 @@ class _NamedUserClass(_SchemaType):
         self.name = name
         self.fields = {}
         self._defaults = {}
+        self.cls = None
 
     def __call__(self, **fields):
         self.fields = fields
+        self.cls = dc.make_dataclass(self.name, fields.keys())
         return self
 
     def defaults(self, **fields):
         self._defaults = fields
+        for f in dc.fields(self.cls):
+            if f.name in self._defaults:
+                dflt = self._defaults[f.name]
+                if callable(dflt):
+                    f.default_factory = dflt
+                else:
+                    f.default = dflt
         return self
 
 
@@ -185,9 +194,9 @@ def parse_node(schema, node):
                 except ParseError:
                     pass
             raise ParseError(f"Failed to parse into union of {types}")
-        case _NamedUserClass(name=name, fields=fields, _defaults=defaults):
+        case _NamedUserClass(name=name, fields=fields, _defaults=defaults, cls=cls):
             d = parse_node(Dict(**fields).defaults(**defaults), node)
-            return dc.make_dataclass(name, fields.keys())(**d)
+            return cls(**d)
         case _SchemaTypeMeta():
             if type(node) != schema.type:
                 raise ParseError(f"Expected type {schema.type!r}")

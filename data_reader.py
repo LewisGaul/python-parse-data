@@ -1,5 +1,6 @@
 __all__ = (
     "Bool",
+    "Float",
     "Int",
     "List",
     "Dict",
@@ -10,6 +11,7 @@ __all__ = (
 )
 
 import dataclasses as dc
+import enum
 import re
 
 
@@ -57,6 +59,29 @@ class Int(_SchemaType):
         raise TypeError(f"Cannot instantiate schema type {type(self)}")
 
 
+class Float(_SchemaType):
+
+    type = float
+
+    def __init__(self):
+        raise TypeError(f"Cannot instantiate schema type {type(self)}")
+
+
+class Str(_SchemaType):
+
+    type = str
+
+    def __init__(self, *, _min_len=None, _max_len=None, _regex=None):
+        """Not recommended to instantiate - cleaner to use '.restrict()'."""
+        self.min_len = _min_len
+        self.max_len = _max_len
+        self.regex = _regex
+
+    @classmethod
+    def restrict(cls, *, min_len=None, max_len=None, regex=None):
+        return cls(_min_len=min_len, _max_len=max_len, _regex=regex)
+
+
 class List(_SchemaType):
 
     type = list
@@ -76,21 +101,6 @@ class Dict(_SchemaType):
     def defaults(self, **fields):
         self._defaults = fields
         return self
-
-
-class Str(_SchemaType):
-
-    type = str
-
-    def __init__(self, *, _min_len=None, _max_len=None, _regex=None):
-        """Not recommended to instantiate - cleaner to use '.restrict()'."""
-        self.min_len = _min_len
-        self.max_len = _max_len
-        self.regex = _regex
-
-    @classmethod
-    def restrict(cls, *, min_len=None, max_len=None, regex=None):
-        return cls(_min_len=min_len, _max_len=max_len, _regex=regex)
 
 
 class Union(_SchemaType):
@@ -135,29 +145,21 @@ def parse_node(schema, node):
     match schema:
         case None:
             if node is not None:
-                raise ParseError("Expected 'None'")
-            return node
-        case Bool():
-            if type(node) != bool:
-                raise ParseError("Expected bool")
-            return node
-        case Int():
-            if type(node) != int:
-                raise ParseError("Expected int")
+                raise ParseError(f"Expected 'None', got {type(node)}")
             return node
         case Str(min_len=min_len, max_len=max_len, regex=regex):
             if type(node) != str:
-                raise ParseError("Expected str")
+                raise ParseError(f"Expected str, got {type(node)}")
             if min_len is not None and len(node) < min_len:
-                raise ParseError(f"String exceeds min len of {min_len}")
+                raise ParseError(f"String {node!r} exceeds min len of {min_len}")
             if max_len is not None and len(node) > max_len:
-                raise ParseError(f"String exceeds max len of {max_len}")
+                raise ParseError(f"String {node!r} exceeds max len of {max_len}")
             if regex is not None and not re.fullmatch(regex, node):
-                raise ParseError(f"String failed to match regex {regex!r}")
+                raise ParseError(f"String {node!r} failed to match regex {regex!r}")
             return node
         case List(inner_type=inner_type):
             if type(node) != list:
-                raise ParseError("Expected list")
+                raise ParseError(f"Expected list, got {type(node)}")
             result = []
             for item in node:
                 try:
@@ -167,7 +169,7 @@ def parse_node(schema, node):
             return result
         case Dict(fields=fields, _defaults=defaults):
             if type(node) != dict:
-                raise ParseError("Expected dict")
+                raise ParseError(f"Expected dict, got {type(node)}")
             node = {k.replace("-", "_"): v for k, v in node.items()}
             d = {}
             for f, t in fields.items():
@@ -193,13 +195,21 @@ def parse_node(schema, node):
                     return parse_node(t, node)
                 except ParseError:
                     pass
-            raise ParseError(f"Failed to parse into union of {types}")
+            raise ParseError(f"Failed to parse {type(node)} into union of {types}")
         case _NamedUserClass(name=name, fields=fields, _defaults=defaults, cls=cls):
             d = parse_node(Dict(**fields).defaults(**defaults), node)
             return cls(**d)
         case _SchemaTypeMeta():
             if type(node) != schema.type:
-                raise ParseError(f"Expected type {schema.type!r}")
+                raise ParseError(f"Expected type {schema.type!r}, got {type(node)}")
             return node
+        case enum.EnumMeta():
+            enum_values = {x.value: x for x in schema}
+            if node in enum_values:
+                return enum_values[node]
+            else:
+                raise ParseError(
+                    f"Expected value from enum {schema.__name__!r}, got '{node}'"
+                )
         case _:
             raise ParseError(f"Unsupported match pattern: {schema}")

@@ -3,34 +3,39 @@ from pprint import pprint
 
 import yaml
 
-from data_reader import *
+import data_reader as dr
 
 yaml_data = """
-        - name: abspath
-          description: Small utility to convert relative to absolute paths
-          link: https://github.com/foo/bar
-          runs-on: [server]
-          contributors: [PersonA]
-          maintained: false
-          languages: [python3]
-        
-        - name: collection/
-          description: Collection of scripts
-          link: null
-          runs- on: []
-          contributors: [SomeDude]
-          maintained: true
-          languages: [python3]
-    """
+- name: abspath
+  description: Small utility to convert relative to absolute paths
+  link: https://github.com/foo/bar
+  runs-on: [server]
+  contributors: [PersonA]
+  maintained: false
+  languages: [python]
+
+- name: collection/
+  description: Collection of scripts
+  link: null
+  runs-on: []
+  contributors: [SomeDude]
+  maintained: true
+  languages: [python]
+"""
 
 data = yaml.safe_load(yaml_data)
 
-class RunsOn(enum.Enum):
+
+class RunsOn(str, enum.Enum):
     SERVER = "server"
     LOCAL = "local"
     WEB = "web"
 
-class Language(enum.Enum):
+    def __repr__(self):
+        return str(self)
+
+
+class Language(str, enum.Enum):
     PYTHON = "python"
     BASH = "bash"
     PERL = "perl"
@@ -38,40 +43,47 @@ class Language(enum.Enum):
     JAVASCRIPT = "javascript"
     C = "c"
 
+    def __repr__(self):
+        return str(self)
 
-schema = List(
-    UserClass["Entry"](
-        name=Str.restrict(max_len=20),
-        description=Str.restrict(max_len=200),
-        link=Str.restrict(regex="https?://.+") | None,
-        usage=Str | None,
-        # runs_on=List(RunsOn),
-        contributors=List(Str),
-        maintained=Bool,
-        notes=Str | None,
-        # languages=List(Language),
-        tags=List(Str),
-        obsolete=Bool,
+
+schema = dr.List(
+    dr.UserClass["Entry"](
+        name=dr.Str.restrict(max_len=20),
+        description=dr.Str.restrict(max_len=200),
+        link=dr.Str.restrict(regex="https?://.+") | None,
+        usage=dr.Str | None,
+        runs_on=dr.List(RunsOn),
+        contributors=dr.List(dr.Str),
+        maintained=dr.Bool,
+        notes=dr.Str | None,
+        languages=dr.List(Language),
+        tags=dr.List(dr.Str),
+        obsolete=dr.Bool,
     ).defaults(usage=None, notes=None, languages=list, tags=list, obsolete=False)
 )
 
-parsed = parse_node(schema, data)
+parsed = dr.parse_node(schema, data)
 pprint(parsed)
 # [Entry(name='abspath',
 #        description='Small utility to convert relative to absolute paths',
 #        link='https://github.com/foo/bar',
 #        usage=None,
+#        runs_on=[RunsOn.SERVER],
 #        contributors=['PersonA'],
 #        maintained=False,
 #        notes=None,
+#        languages=[Language.PYTHON],
 #        tags=[],
 #        obsolete=False),
 #  Entry(name='collection/',
 #        description='Collection of scripts',
 #        link=None,
 #        usage=None,
+#        runs_on=[],
 #        contributors=['SomeDude'],
 #        maintained=True,
 #        notes=None,
+#        languages=[Language.PYTHON],
 #        tags=[],
 #        obsolete=False)]

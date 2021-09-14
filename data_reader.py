@@ -43,6 +43,12 @@ class _SchemaType(metaclass=_SchemaTypeMeta):
         return Union(*types)
 
 
+class Any(_SchemaType):
+
+    def __init__(self):
+        raise TypeError(f"Cannot instantiate schema type {type(self)}")
+
+
 class Bool(_SchemaType):
 
     type = bool
@@ -200,7 +206,7 @@ def parse_node(schema, node):
             d = parse_node(Dict(**fields).defaults(**defaults), node)
             return cls(**d)
         case _SchemaTypeMeta():
-            if type(node) != schema.type:
+            if schema is not Any and type(node) != schema.type:
                 raise ParseError(f"Expected type {schema.type!r}, got {type(node)}")
             return node
         case enum.EnumMeta():

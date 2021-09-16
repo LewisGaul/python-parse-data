@@ -26,15 +26,6 @@ yaml_data = """
 data = yaml.safe_load(yaml_data)
 
 
-class RunsOn(str, enum.Enum):
-    SERVER = "server"
-    LOCAL = "local"
-    WEB = "web"
-
-    def __repr__(self):
-        return str(self)
-
-
 class Language(str, enum.Enum):
     PYTHON = "python"
     BASH = "bash"
@@ -53,17 +44,23 @@ schema = dr.List(
         description=dr.Str.restrict(max_len=200),
         link=dr.Str.restrict(regex="https?://.+") | None,
         usage=dr.Str | None,
-        runs_on=dr.List(RunsOn),
+        runs_on=dr.List(
+            dr.UserEnum["RunsOn"]("server", "local", "web")
+        ),
         contributors=dr.List(dr.Str),
         maintained=dr.Bool,
         notes=dr.Str | None,
-        languages=dr.List(Language),
+        languages=dr.List(
+            dr.UserEnum["Language"](
+                "python", "bash", "perl", "elm", "javascript", "c"
+            )
+        ),
         tags=dr.List(dr.Str),
         obsolete=dr.Bool,
     ).defaults(usage=None, notes=None, languages=list, tags=list, obsolete=False)
 )
 
-parsed = dr.parse_node(schema, data)
+parsed = dr.parse_data(schema, data)
 pprint(parsed)
 # [Entry(name='abspath',
 #        description='Small utility to convert relative to absolute paths',

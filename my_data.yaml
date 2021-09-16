@@ -1,0 +1,6 @@
+- name: abspath
+  link: https://github.com/foo/bar
+  runs-on: [server, local]
+  maintained: false
+
+- name: collection/

@@ -1,4 +1,5 @@
 import enum
+import functools
 import logging
 import pathlib
 from pprint import pprint
@@ -13,6 +14,10 @@ YAML_PATH = pathlib.Path(__file__).parent / "cli.yaml"
 with open(YAML_PATH) as f:
     data = yaml.safe_load(f)
 
+
+# ------------------------------------------------------------------------------
+# Schema
+# ------------------------------------------------------------------------------
 
 class ArgType(str, enum.Enum):
     STRING = "string"
@@ -55,6 +60,10 @@ Arg = arg_schema.cls
 Node = node_schema.cls
 RootNode = schema.cls
 
+
+# ------------------------------------------------------------------------------
+# Parsing logic
+# ------------------------------------------------------------------------------
 
 def get_next_node(node: Node, kw: str) -> Optional[Node]:
     if node.subtree is None:
@@ -124,10 +133,30 @@ def node_help_long(node: Node):
         print()
 
 
-parsed = dr.parse_node(schema, data)
+# ------------------------------------------------------------------------------
+# Commands
+# ------------------------------------------------------------------------------
+
+commands = {}
+
+
+def register(func):
+    commands[func.__name__] = func
+    return func
+
+
+@register
+def run_tests():
+    print("Running tests...")
+
+
+# ------------------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------------------
+
+parsed = dr.parse_data(schema, data)
 # pprint(parsed)
 
-# Mainloop
 if parsed.welcome:
     print(parsed.welcome)
 while True:
@@ -139,7 +168,9 @@ while True:
         logging.debug("Remaining: %r", rem_cmd)
         if rem_cmd == "?":
             node_help(end_node)
-        if rem_cmd == "??":
+        elif rem_cmd == "??":
             node_help_long(end_node)
+        elif getattr(end_node, "command", None):
+            commands[end_node.command.replace("-", "_")]()
     except Exception:
         print("Don't know how to handle that command!")

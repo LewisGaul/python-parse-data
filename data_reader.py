@@ -6,7 +6,8 @@ __all__ = (
     "Dict",
     "Str",
     "UserClass",
-    "parse_node",
+    "UserEnum",
+    "parse_data",
     "ParseError",
 )
 
@@ -25,10 +26,10 @@ class _SchemaTypeMeta(type):
         return Union(*types)
 
     def __getitem__(cls, item):
-        if cls is UserClass:
+        if hasattr(cls, "named_cls"):
             if not isinstance(item, str):
-                raise TypeError("UserClass name must be a string")
-            return _NamedUserClass(item)
+                raise TypeError(f"{cls.__name__} name must be a string")
+            return cls.named_cls(item)
         else:
             raise TypeError(f"'{cls}' is not subscriptable")
 
@@ -114,11 +115,6 @@ class Union(_SchemaType):
         self.types = types
 
 
-class UserClass(_SchemaType):
-    def __init__(self):
-        raise TypeError(f"Cannot instantiate {type(self)}")
-
-
 class _NamedUserClass(_SchemaType):
     def __init__(self, name: str):
         self.name = name
@@ -143,11 +139,41 @@ class _NamedUserClass(_SchemaType):
         return self
 
 
+class UserClass(_SchemaType):
+
+    named_cls = _NamedUserClass
+
+    def __init__(self):
+        raise TypeError(f"Cannot instantiate {type(self)}")
+
+
+class _NamedUserEnum(_SchemaType):
+    def __init__(self, name: str):
+        self.name = name
+        self.fields = {}
+        self._defaults = {}
+        self.cls = None
+
+    def __call__(self, *fields):
+        self.fields = [f.upper().replace("-", "_") for f in fields]
+        self.cls = enum.Enum(self.name, self.fields)
+        self.cls.__repr__ = self.cls.__str__
+        return self
+
+
+class UserEnum(_SchemaType):
+
+    named_cls = _NamedUserEnum
+
+    def __init__(self):
+        raise TypeError(f"Cannot instantiate {type(self)}")
+
+
 class ParseError(Exception):
     pass
 
 
-def parse_node(schema, node):
+def parse_data(schema, node):
     match schema:
         case None:
             if node is not None:
@@ -169,7 +195,7 @@ def parse_node(schema, node):
             result = []
             for item in node:
                 try:
-                    result.append(parse_node(inner_type, item))
+                    result.append(parse_data(inner_type, item))
                 except ParseError as e:
                     raise ParseError(f"Error in list item {len(result)}") from e
             return result
@@ -191,20 +217,25 @@ def parse_node(schema, node):
                         raise ParseError(f"Missing field {f!r}") from None
                 else:
                     try:
-                        d[f] = parse_node(t, node_field)
+                        d[f] = parse_data(t, node_field)
                     except ParseError as e:
                         raise ParseError(f"Error parsing field {f!r}") from e
             return d
         case Union(types=types):
             for t in types:
                 try:
-                    return parse_node(t, node)
+                    return parse_data(t, node)
                 except ParseError:
                     pass
             raise ParseError(f"Failed to parse {type(node)} into union of {types}")
         case _NamedUserClass(name=name, fields=fields, _defaults=defaults, cls=cls):
-            d = parse_node(Dict(**fields).defaults(**defaults), node)
+            d = parse_data(Dict(**fields).defaults(**defaults), node)
             return cls(**d)
+        case _NamedUserEnum(name=name, cls=cls):
+            enum_name = node.upper().replace("-", "_")
+            if enum_name in cls.__members__:
+                return getattr(cls, enum_name)
+            raise ParseError(f"Failed to parse '{node}' into enum '{cls.__name__}'")
         case _SchemaTypeMeta():
             if schema is not Any and type(node) != schema.type:
                 raise ParseError(f"Expected type {schema.type!r}, got {type(node)}")
